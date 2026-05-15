@@ -1,0 +1,868 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "factoryName": {
+            "type": "string",
+            "metadata": "Data Factory name"
+        },
+        "Azure_Databricks_Toronto_DE_Project_LS": {
+            "type": "string"
+        },
+        "Toronto_DWH_Azure_SQL_LS": {
+            "type": "string"
+        },
+        "Weather_API_HTTP_Server": {
+            "type": "string"
+        },
+        "Toronto_data_lake_storage_LS": {
+            "type": "string"
+        },
+        "Toronto_traffic_collision_data_http": {
+            "type": "string"
+        }
+    },
+    "variables": {
+        "factoryId": "[concat('Microsoft.DataFactory/factories/', parameters('factoryName'))]"
+    },
+    "resources": [
+        {
+            "name": "[concat(parameters('factoryName'), '/Toronto_traffic_collisions_weather_ETL')]",
+            "type": "Microsoft.DataFactory/factories/pipelines",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "activities": [
+                    {
+                        "name": "Toronto_weather_copy",
+                        "type": "Copy",
+                        "dependsOn": [],
+                        "policy": {
+                            "timeout": "0.12:00:00",
+                            "retry": 0,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": false,
+                            "secureInput": false
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "source": {
+                                "type": "DelimitedTextSource",
+                                "storeSettings": {
+                                    "type": "HttpReadSettings",
+                                    "requestMethod": "GET"
+                                },
+                                "formatSettings": {
+                                    "type": "DelimitedTextReadSettings"
+                                }
+                            },
+                            "sink": {
+                                "type": "DelimitedTextSink",
+                                "storeSettings": {
+                                    "type": "AzureBlobFSWriteSettings",
+                                    "copyBehavior": "FlattenHierarchy"
+                                },
+                                "formatSettings": {
+                                    "type": "DelimitedTextWriteSettings",
+                                    "quoteAllText": true,
+                                    "fileExtension": ".csv"
+                                }
+                            },
+                            "enableStaging": false,
+                            "translator": {
+                                "type": "TabularTranslator",
+                                "typeConversion": true,
+                                "typeConversionSettings": {
+                                    "allowDataTruncation": true,
+                                    "treatBooleanAsNumber": false
+                                }
+                            }
+                        },
+                        "inputs": [
+                            {
+                                "referenceName": "Toronto_weather_http_get_csv",
+                                "type": "DatasetReference",
+                                "parameters": {}
+                            }
+                        ],
+                        "outputs": [
+                            {
+                                "referenceName": "Toronto_weather_data_lake_csv",
+                                "type": "DatasetReference",
+                                "parameters": {}
+                            }
+                        ]
+                    },
+                    {
+                        "name": "Get number of traffic collision records",
+                        "type": "WebActivity",
+                        "dependsOn": [],
+                        "policy": {
+                            "timeout": "0.12:00:00",
+                            "retry": 0,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": false,
+                            "secureInput": false
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "method": "GET",
+                            "headers": {},
+                            "url": "https://services.arcgis.com/S9th0jAJ7bqgIRjw/arcgis/rest/services/Traffic_Collisions_Open_Data/FeatureServer/0/query?where=1%3D1&outFields=*&returnCountOnly=true&outSR=4326&f=json"
+                        }
+                    },
+                    {
+                        "name": "Set request range for traffic collision",
+                        "type": "SetVariable",
+                        "dependsOn": [
+                            {
+                                "activity": "Get number of traffic collision records",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "policy": {
+                            "secureOutput": false,
+                            "secureInput": false
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "variableName": "request_range",
+                            "value": {
+                                "value": "@range(0,add(1,int(div(activity('Get number of traffic collision records').output.count,2000))))",
+                                "type": "Expression"
+                            }
+                        }
+                    },
+                    {
+                        "name": "For Each offset records",
+                        "type": "ForEach",
+                        "dependsOn": [
+                            {
+                                "activity": "Set request range for traffic collision",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "userProperties": [],
+                        "typeProperties": {
+                            "items": {
+                                "value": "@variables('request_range')",
+                                "type": "Expression"
+                            },
+                            "isSequential": false,
+                            "activities": [
+                                {
+                                    "name": "Toronto_traffic_collisions_copy",
+                                    "type": "Copy",
+                                    "dependsOn": [],
+                                    "policy": {
+                                        "timeout": "0.12:00:00",
+                                        "retry": 0,
+                                        "retryIntervalInSeconds": 30,
+                                        "secureOutput": false,
+                                        "secureInput": false
+                                    },
+                                    "userProperties": [],
+                                    "typeProperties": {
+                                        "source": {
+                                            "type": "JsonSource",
+                                            "storeSettings": {
+                                                "type": "HttpReadSettings",
+                                                "requestMethod": "GET"
+                                            },
+                                            "formatSettings": {
+                                                "type": "JsonReadSettings"
+                                            }
+                                        },
+                                        "sink": {
+                                            "type": "JsonSink",
+                                            "storeSettings": {
+                                                "type": "AzureBlobFSWriteSettings"
+                                            },
+                                            "formatSettings": {
+                                                "type": "JsonWriteSettings"
+                                            }
+                                        },
+                                        "enableStaging": false
+                                    },
+                                    "inputs": [
+                                        {
+                                            "referenceName": "Toronto_traffic_collsion_http_get_json",
+                                            "type": "DatasetReference",
+                                            "parameters": {
+                                                "skip_records": {
+                                                    "value": "@string(mul(item(),2000))",
+                                                    "type": "Expression"
+                                                }
+                                            }
+                                        }
+                                    ],
+                                    "outputs": [
+                                        {
+                                            "referenceName": "Toronto_traffic_collision_data_lake_json",
+                                            "type": "DatasetReference",
+                                            "parameters": {
+                                                "file_number": {
+                                                    "value": "@string(item())",
+                                                    "type": "Expression"
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "name": "Toronto_data_transform_notebook",
+                        "type": "DatabricksNotebook",
+                        "dependsOn": [
+                            {
+                                "activity": "For Each offset records",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            },
+                            {
+                                "activity": "Toronto_weather_copy",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "policy": {
+                            "timeout": "0.12:00:00",
+                            "retry": 0,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": false,
+                            "secureInput": false
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "notebookPath": "/Users/b.uminski@student.uw.edu.pl/Clean_transform_Toronto_data"
+                        },
+                        "linkedServiceName": {
+                            "referenceName": "[parameters('Azure_Databricks_Toronto_DE_Project_LS')]",
+                            "type": "LinkedServiceReference"
+                        }
+                    },
+                    {
+                        "name": "Copy_Toronto_weather_transformed_to_Azure_SQL",
+                        "type": "Copy",
+                        "dependsOn": [
+                            {
+                                "activity": "Toronto_data_transform_notebook",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "policy": {
+                            "timeout": "0.12:00:00",
+                            "retry": 0,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": false,
+                            "secureInput": false
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "source": {
+                                "type": "ParquetSource",
+                                "storeSettings": {
+                                    "type": "AzureBlobFSReadSettings",
+                                    "recursive": true,
+                                    "wildcardFolderPath": {
+                                        "value": "@concat('transformed/toronto_weather_transformed_',formatDateTime(utcNow(),'yyyyMMdd'))",
+                                        "type": "Expression"
+                                    },
+                                    "wildcardFileName": "*.parquet",
+                                    "enablePartitionDiscovery": false
+                                },
+                                "formatSettings": {
+                                    "type": "ParquetReadSettings"
+                                }
+                            },
+                            "sink": {
+                                "type": "AzureSqlSink",
+                                "preCopyScript": {
+                                    "value": "IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'FCT_Weather') TRUNCATE TABLE dbo.FCT_Weather;",
+                                    "type": "Expression"
+                                },
+                                "writeBehavior": "insert",
+                                "sqlWriterUseTableLock": false,
+                                "tableOption": "autoCreate",
+                                "disableMetricsCollection": false
+                            },
+                            "enableStaging": false,
+                            "translator": {
+                                "type": "TabularTranslator",
+                                "typeConversion": true,
+                                "typeConversionSettings": {
+                                    "allowDataTruncation": true,
+                                    "treatBooleanAsNumber": false
+                                }
+                            }
+                        },
+                        "inputs": [
+                            {
+                                "referenceName": "Toronto_data_transformed_parquet",
+                                "type": "DatasetReference",
+                                "parameters": {}
+                            }
+                        ],
+                        "outputs": [
+                            {
+                                "referenceName": "FCT_Toronto_tables_AzureSQL",
+                                "type": "DatasetReference",
+                                "parameters": {
+                                    "table_name": "FCT_Weather"
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "name": "Copy_Toronto_traffic_collisions_transformed_to_AzureSQL",
+                        "type": "Copy",
+                        "dependsOn": [
+                            {
+                                "activity": "Toronto_data_transform_notebook",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "policy": {
+                            "timeout": "0.12:00:00",
+                            "retry": 0,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": false,
+                            "secureInput": false
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "source": {
+                                "type": "ParquetSource",
+                                "storeSettings": {
+                                    "type": "AzureBlobFSReadSettings",
+                                    "recursive": true,
+                                    "wildcardFolderPath": {
+                                        "value": "@concat('transformed/toronto_traffic_collisions_transformed_',formatDateTime(utcNow(),'yyyyMMdd'))",
+                                        "type": "Expression"
+                                    },
+                                    "wildcardFileName": "*.parquet",
+                                    "enablePartitionDiscovery": false
+                                },
+                                "formatSettings": {
+                                    "type": "ParquetReadSettings"
+                                }
+                            },
+                            "sink": {
+                                "type": "AzureSqlSink",
+                                "preCopyScript": "IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'FCT_Traffic_Collisions') TRUNCATE TABLE dbo.FCT_Traffic_Collisions;",
+                                "writeBehavior": "insert",
+                                "sqlWriterUseTableLock": false,
+                                "tableOption": "autoCreate",
+                                "disableMetricsCollection": false
+                            },
+                            "enableStaging": false,
+                            "translator": {
+                                "type": "TabularTranslator",
+                                "typeConversion": true,
+                                "typeConversionSettings": {
+                                    "allowDataTruncation": true,
+                                    "treatBooleanAsNumber": false
+                                }
+                            }
+                        },
+                        "inputs": [
+                            {
+                                "referenceName": "Toronto_data_transformed_parquet",
+                                "type": "DatasetReference",
+                                "parameters": {}
+                            }
+                        ],
+                        "outputs": [
+                            {
+                                "referenceName": "FCT_Toronto_tables_AzureSQL",
+                                "type": "DatasetReference",
+                                "parameters": {
+                                    "table_name": "FCT_Traffic_Collisions"
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "name": "Create_calendar_table_in_AzureSQL",
+                        "type": "Script",
+                        "dependsOn": [
+                            {
+                                "activity": "Copy_Toronto_weather_transformed_to_Azure_SQL",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            },
+                            {
+                                "activity": "Copy_Toronto_traffic_collisions_transformed_to_AzureSQL",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "policy": {
+                            "timeout": "0.12:00:00",
+                            "retry": 0,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": false,
+                            "secureInput": false
+                        },
+                        "userProperties": [],
+                        "linkedServiceName": {
+                            "referenceName": "[parameters('Toronto_DWH_Azure_SQL_LS')]",
+                            "type": "LinkedServiceReference"
+                        },
+                        "typeProperties": {
+                            "scripts": [
+                                {
+                                    "type": "NonQuery",
+                                    "text": "DECLARE @StartDate DATE = (SELECT DATEFROMPARTS(YEAR(MIN(A.DATE_EVENT)),1,1) FROM [dbo].[FCT_Traffic_Collisions] A);\nDECLARE @EndDate DATE = (SELECT DATEFROMPARTS (YEAR(MAX(A.DATE_EVENT)),12,31) FROM [dbo].[FCT_Traffic_Collisions] A);\nSET DATEFIRST 1;\n\nIF EXISTS (SELECT * FROM information_schema.tables WHERE Table_Name = 'DIM_Date' and TABLE_SCHEMA='dbo') TRUNCATE TABLE dbo.DIM_Date;\n\nELSE\nCREATE TABLE dbo.DIM_Date\n(\n    CalendarDate DATE,\n    Year INT,\n    StartOfYear VARCHAR(20),\n    EndOfYear VARCHAR(20),\n    Month INT,\n\tMonthName VARCHAR(20),\n    StartOfMonth VARCHAR(20),\n    EndOfMonth VARCHAR(20),\n    DaysInMonth INT,\n\tQuarter INT,\n    StartOfQuarter VARCHAR(20),\n    EndOfQuarter VARCHAR(20),\n    Day INT,\n    DayName VARCHAR(20),\n    DayOfWeek INT,\n\tDayOfYear INT,\n\tIsWeekend BIT,\n\tNumWeek INT\n);\n\nWHILE @StartDate <= @EndDate\nBEGIN\n  INSERT INTO dbo.DIM_Date (\n    CalendarDate, Year, StartOfYear, EndOfYear,\n    Month, MonthName, StartOfMonth, EndOfMonth, DaysInMonth,\n\tQuarter, StartOfQuarter, EndOfQuarter,\n    Day, DayName, DayOfWeek, DayOfYear, IsWeekend, \n\tNumWeek\n    \n  )\n  VALUES (\n    @StartDate, \n    YEAR(@StartDate), -- Year\n    DATEFROMPARTS(YEAR(@StartDate), 1, 1), -- StartOfYear\n    DATEFROMPARTS(YEAR(@StartDate), 12, 31), -- EndOfYear\n    MONTH(@StartDate), -- Month\n\tDATENAME(MONTH, @StartDate), --MonthName\n    DATEFROMPARTS(YEAR(@StartDate), MONTH(@StartDate), 1), -- StartOfMonth\n    EOMONTH(@StartDate), -- EndOfMonth\n    DAY(EOMONTH(@StartDate)), -- DaysInMonth\n\tDATEPART(QUARTER, @StartDate), -- Quarter\n    CAST(DATEADD(QUARTER, DATEDIFF(QUARTER, 0, @StartDate), 0) AS DATE), -- StartOfQuarter\n    EOMONTH(DATEFROMPARTS(YEAR(@StartDate), DATEPART(QUARTER, @StartDate) * 3, 1)), -- EndOfQuarter\n    DAY(@StartDate), -- Day\n    DATENAME(WEEKDAY, @StartDate), -- DayName\n    DATEPART(weekday, @StartDate), -- DayOfWeek\n    DATEPART(dayofyear, @StartDate), -- DayOfYear\n\tCASE\n           WHEN (((DATEPART(weekday, @StartDate) - 1 ) + @@DATEFIRST ) % 7) IN (0,6)\n           THEN 1\n           ELSE 0\n    END, -- IsWeekend\n\tDATEPART(week, @StartDate) -- NumWeek\n  );\n\nSET @StartDate = DATEADD(day, 1, @StartDate);\nEND;"
+                                }
+                            ],
+                            "scriptBlockExecutionTimeout": "02:00:00"
+                        }
+                    }
+                ],
+                "policy": {
+                    "elapsedTimeMetric": {}
+                },
+                "variables": {
+                    "request_range": {
+                        "type": "Array"
+                    }
+                },
+                "annotations": [],
+                "lastPublishTime": "2024-11-04T15:56:53Z"
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/datasets/Toronto_weather_http_get_csv')]",
+                "[concat(variables('factoryId'), '/datasets/Toronto_weather_data_lake_csv')]",
+                "[concat(variables('factoryId'), '/datasets/Toronto_data_transformed_parquet')]",
+                "[concat(variables('factoryId'), '/datasets/FCT_Toronto_tables_AzureSQL')]",
+                "[concat(variables('factoryId'), '/datasets/Toronto_traffic_collsion_http_get_json')]",
+                "[concat(variables('factoryId'), '/datasets/Toronto_traffic_collision_data_lake_json')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/Toronto_weather_http_get_csv')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "[parameters('Weather_API_HTTP_Server')]",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "DelimitedText",
+                "typeProperties": {
+                    "location": {
+                        "type": "HttpServerLocation",
+                        "relativeUrl": {
+                            "value": "@concat('archive?latitude=43.7001&longitude=-79.4163&start_date=2014-01-01&end_date=',formatDateTime(utcNow(), 'yyyy-MM-dd'),'&daily=weather_code,temperature_2m_max,temperature_2m_min,temperature_2m_mean,sunrise,sunset,daylight_duration,sunshine_duration,precipitation_sum,rain_sum,snowfall_sum,precipitation_hours,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant,shortwave_radiation_sum,et0_fao_evapotranspiration&timezone=America%2FNew_York&format=csv')",
+                            "type": "Expression"
+                        }
+                    },
+                    "columnDelimiter": ",",
+                    "escapeChar": "\\",
+                    "firstRowAsHeader": true,
+                    "quoteChar": "\""
+                },
+                "schema": [
+                    {
+                        "name": "latitude",
+                        "type": "String"
+                    },
+                    {
+                        "name": "longitude",
+                        "type": "String"
+                    },
+                    {
+                        "name": "elevation",
+                        "type": "String"
+                    },
+                    {
+                        "name": "utc_offset_seconds",
+                        "type": "String"
+                    },
+                    {
+                        "name": "timezone",
+                        "type": "String"
+                    },
+                    {
+                        "name": "timezone_abbreviation",
+                        "type": "String"
+                    }
+                ]
+            },
+            "dependsOn": []
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/Toronto_weather_data_lake_csv')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "[parameters('Toronto_data_lake_storage_LS')]",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "DelimitedText",
+                "typeProperties": {
+                    "location": {
+                        "type": "AzureBlobFSLocation",
+                        "fileName": {
+                            "value": "@concat('toronto_weather_', formatDateTime(utcNow(), 'yyyyMMdd'), '.csv')",
+                            "type": "Expression"
+                        },
+                        "folderPath": "raw",
+                        "fileSystem": "toronto-data"
+                    },
+                    "columnDelimiter": ",",
+                    "escapeChar": "\\",
+                    "firstRowAsHeader": true,
+                    "quoteChar": "\""
+                },
+                "schema": []
+            },
+            "dependsOn": []
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/Toronto_data_transformed_parquet')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "[parameters('Toronto_data_lake_storage_LS')]",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "Parquet",
+                "typeProperties": {
+                    "location": {
+                        "type": "AzureBlobFSLocation",
+                        "fileSystem": "toronto-data"
+                    },
+                    "compressionCodec": "snappy"
+                },
+                "schema": [
+                    {
+                        "name": "AUTOMOBILE",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "BICYCLE",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "DIVISION",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "EVENT_UNIQUE_ID",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "FATALITIES",
+                        "type": "INT_32"
+                    },
+                    {
+                        "name": "FTR_COLLISIONS",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "INJURY_COLLISIONS",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "LATITUDE",
+                        "type": "DOUBLE"
+                    },
+                    {
+                        "name": "LONGITUDE",
+                        "type": "DOUBLE"
+                    },
+                    {
+                        "name": "MOTORCYCLE",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "NEIGHBOURHOOD_NAME",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "HOUR_EVENT",
+                        "type": "INT_32"
+                    },
+                    {
+                        "name": "PASSENGER",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "PD_COLLISIONS",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "PEDESTRIAN",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "DATETIME_EVENT",
+                        "type": "DATE"
+                    }
+                ]
+            },
+            "dependsOn": []
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/FCT_Toronto_tables_AzureSQL')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "[parameters('Toronto_DWH_Azure_SQL_LS')]",
+                    "type": "LinkedServiceReference"
+                },
+                "parameters": {
+                    "table_name": {
+                        "type": "string"
+                    }
+                },
+                "annotations": [],
+                "type": "AzureSqlTable",
+                "schema": [],
+                "typeProperties": {
+                    "schema": "dbo",
+                    "table": {
+                        "value": "@dataset().table_name",
+                        "type": "Expression"
+                    }
+                }
+            },
+            "dependsOn": []
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/Toronto_traffic_collsion_http_get_json')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "[parameters('Toronto_traffic_collision_data_http')]",
+                    "type": "LinkedServiceReference"
+                },
+                "parameters": {
+                    "skip_records": {
+                        "type": "string"
+                    }
+                },
+                "annotations": [],
+                "type": "Json",
+                "typeProperties": {
+                    "location": {
+                        "type": "HttpServerLocation",
+                        "relativeUrl": {
+                            "value": "@concat('0/query?where=1%3D1&outFields=*&outSR=4326&ResultOffset=',dataset().skip_records,'&f=json')",
+                            "type": "Expression"
+                        }
+                    }
+                },
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "objectIdFieldName": {
+                            "type": "string"
+                        },
+                        "uniqueIdField": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string"
+                                },
+                                "isSystemMaintained": {
+                                    "type": "boolean"
+                                }
+                            }
+                        },
+                        "globalIdFieldName": {
+                            "type": "string"
+                        },
+                        "geometryType": {
+                            "type": "string"
+                        },
+                        "spatialReference": {
+                            "type": "object",
+                            "properties": {
+                                "wkid": {
+                                    "type": "integer"
+                                },
+                                "latestWkid": {
+                                    "type": "integer"
+                                }
+                            }
+                        },
+                        "fields": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string"
+                                    },
+                                    "type": {
+                                        "type": "string"
+                                    },
+                                    "alias": {
+                                        "type": "string"
+                                    },
+                                    "sqlType": {
+                                        "type": "string"
+                                    },
+                                    "domain": {
+                                        "type": "null"
+                                    },
+                                    "defaultValue": {
+                                        "type": "null"
+                                    }
+                                }
+                            }
+                        },
+                        "exceededTransferLimit": {
+                            "type": "boolean"
+                        },
+                        "features": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "attributes": {
+                                        "type": "object",
+                                        "properties": {
+                                            "OBJECTID": {
+                                                "type": "integer"
+                                            },
+                                            "EVENT_UNIQUE_ID": {
+                                                "type": "string"
+                                            },
+                                            "OCC_DATE": {
+                                                "type": "integer"
+                                            },
+                                            "OCC_MONTH": {
+                                                "type": "string"
+                                            },
+                                            "OCC_DOW": {
+                                                "type": "string"
+                                            },
+                                            "OCC_YEAR": {
+                                                "type": "integer"
+                                            },
+                                            "OCC_HOUR": {
+                                                "type": "integer"
+                                            },
+                                            "DIVISION": {
+                                                "type": "string"
+                                            },
+                                            "FATALITIES": {
+                                                "type": "integer"
+                                            },
+                                            "INJURY_COLLISIONS": {
+                                                "type": "string"
+                                            },
+                                            "FTR_COLLISIONS": {
+                                                "type": "string"
+                                            },
+                                            "PD_COLLISIONS": {
+                                                "type": "string"
+                                            },
+                                            "HOOD_158": {
+                                                "type": "string"
+                                            },
+                                            "NEIGHBOURHOOD_158": {
+                                                "type": "string"
+                                            },
+                                            "LONG_WGS84": {
+                                                "type": "number"
+                                            },
+                                            "LAT_WGS84": {
+                                                "type": "number"
+                                            },
+                                            "AUTOMOBILE": {
+                                                "type": "string"
+                                            },
+                                            "MOTORCYCLE": {
+                                                "type": "string"
+                                            },
+                                            "PASSENGER": {
+                                                "type": "string"
+                                            },
+                                            "BICYCLE": {
+                                                "type": "string"
+                                            },
+                                            "PEDESTRIAN": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    },
+                                    "geometry": {
+                                        "type": "object",
+                                        "properties": {
+                                            "x": {
+                                                "type": "number"
+                                            },
+                                            "y": {
+                                                "type": "number"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "dependsOn": []
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/Toronto_traffic_collision_data_lake_json')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "[parameters('Toronto_data_lake_storage_LS')]",
+                    "type": "LinkedServiceReference"
+                },
+                "parameters": {
+                    "file_number": {
+                        "type": "string"
+                    }
+                },
+                "annotations": [],
+                "type": "Json",
+                "typeProperties": {
+                    "location": {
+                        "type": "AzureBlobFSLocation",
+                        "fileName": {
+                            "value": "@concat('toronto_traffic_collisions_part_',dataset().file_number,'_', '.json')",
+                            "type": "Expression"
+                        },
+                        "folderPath": {
+                            "value": "@concat('raw/toronto_traffic_collisions_',formatDateTime(utcNow(), 'yyyyMMdd'))",
+                            "type": "Expression"
+                        },
+                        "fileSystem": "toronto-data"
+                    }
+                },
+                "schema": {}
+            },
+            "dependsOn": []
+        }
+    ]
+}

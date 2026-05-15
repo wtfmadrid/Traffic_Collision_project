@@ -1,0 +1,86 @@
+{
+    "cluster_id": "1023-202358-o4l83ozy",
+    "creator_user_name": "b.uminski@student.uw.edu.pl",
+    "spark_context_id": 2524223113473260500,
+    "driver_healthy": true,
+    "cluster_name": "Bartłomiej Umiński's Cluster",
+    "spark_version": "12.2.x-scala2.12",
+    "spark_conf": {
+        "spark.master": "local[*, 4]",
+        "spark.databricks.cluster.profile": "singleNode"
+    },
+    "azure_attributes": {
+        "first_on_demand": 1,
+        "availability": "ON_DEMAND_AZURE",
+        "spot_bid_max_price": -1
+    },
+    "node_type_id": "Standard_DS3_v2",
+    "driver_node_type_id": "Standard_DS3_v2",
+    "custom_tags": {
+        "ResourceClass": "SingleNode"
+    },
+    "autotermination_minutes": 20,
+    "enable_elastic_disk": true,
+    "disk_spec": {},
+    "cluster_source": "UI",
+    "single_user_name": "b.uminski@student.uw.edu.pl",
+    "enable_local_disk_encryption": false,
+    "instance_source": {
+        "node_type_id": "Standard_DS3_v2"
+    },
+    "driver_instance_source": {
+        "node_type_id": "Standard_DS3_v2"
+    },
+    "data_security_mode": "LEGACY_SINGLE_USER_STANDARD",
+    "runtime_engine": "PHOTON",
+    "effective_spark_version": "12.2.x-photon-scala2.12",
+    "state": "TERMINATED",
+    "state_message": "Inactive cluster terminated (inactive for 20 minutes).",
+    "start_time": 1729715038598,
+    "terminated_time": 1730728769195,
+    "last_state_loss_time": 1730727295261,
+    "last_activity_time": 1730727325729,
+    "last_restarted_time": 1730727295291,
+    "num_workers": 0,
+    "default_tags": {
+        "Vendor": "Databricks",
+        "Creator": "b.uminski@student.uw.edu.pl",
+        "ClusterName": "Bartłomiej Umiński's Cluster",
+        "ClusterId": "1023-202358-o4l83ozy"
+    },
+    "termination_reason": {
+        "code": "INACTIVITY",
+        "type": "SUCCESS",
+        "parameters": {
+            "inactivity_duration_min": "20"
+        }
+    },
+    "init_scripts_safe_mode": false,
+    "spec": {
+        "cluster_name": "Bartłomiej Umiński's Cluster",
+        "spark_version": "12.2.x-scala2.12",
+        "spark_conf": {
+            "spark.master": "local[*, 4]",
+            "spark.databricks.cluster.profile": "singleNode"
+        },
+        "azure_attributes": {
+            "first_on_demand": 1,
+            "availability": "ON_DEMAND_AZURE",
+            "spot_bid_max_price": -1
+        },
+        "node_type_id": "Standard_DS3_v2",
+        "driver_node_type_id": "Standard_DS3_v2",
+        "custom_tags": {
+            "ResourceClass": "SingleNode"
+        },
+        "autotermination_minutes": 20,
+        "enable_elastic_disk": true,
+        "single_user_name": "b.uminski@student.uw.edu.pl",
+        "enable_local_disk_encryption": false,
+        "data_security_mode": "LEGACY_SINGLE_USER_STANDARD",
+        "runtime_engine": "PHOTON",
+        "effective_spark_version": "15.4.x-photon-scala2.12",
+        "num_workers": 0,
+        "apply_policy_default_values": false
+    }
+}
