@@ -1,0 +1,1 @@
+var __IS_A365__=!1,__IS_FABRIC_ADF__=!1,__IS_FABRIC_DPE__=!1,__IS_FABRIC_MDF__=!1;const aiName="oneDSWeb";window[aiName]=new oneDS.ApplicationInsights,oneDSWeb.loggingContext={};

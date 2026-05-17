@@ -1,0 +1,1 @@
+__Zone_ignore_on_properties=[{target:window,ignoreProperties:["onedsSDK","oneDSWeb","oneDS"].map(value=>value.slice(2))}],__Zone_disable_on_property=!0,sessionStorage.setItem("time-load-start",performance.now());
